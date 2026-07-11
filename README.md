@@ -62,6 +62,16 @@ refresh_secs = 300
 
 ### Widget ESAA
 
+Para escolher deterministicamente o workspace ESAA somente na execução atual:
+
+```bash
+eclock --path /home/elzobrito
+eclock --path /home/elzobrito/desenvolvimento/elzo-clock
+```
+
+O diretório precisa conter `.roadmap/`. A opção sobrescreve o argumento do widget
+`eclock-esaa` apenas em memória e não altera o `config.toml`.
+
 Helper instalável:
 
 ```bash

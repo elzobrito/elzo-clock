@@ -62,7 +62,11 @@ pub fn redact_secrets(value: &str) -> String {
     // OpenAI-like
     out = replace_regexish(&out, r"sk-[A-Za-z0-9]{20,}", "[REDACTED]");
     // Bearer tokens
-    out = replace_regexish(&out, r"(?i)bearer\s+[A-Za-z0-9\-\._~\+\/]+=*", "Bearer [REDACTED]");
+    out = replace_regexish(
+        &out,
+        r"(?i)bearer\s+[A-Za-z0-9\-\._~\+\/]+=*",
+        "Bearer [REDACTED]",
+    );
     // JWT-ish (three base64 segments)
     out = replace_regexish(
         &out,
@@ -115,10 +119,15 @@ fn replace_regexish(input: &str, pattern: &str, replacement: &str) -> String {
         r"ghp_[A-Za-z0-9]{20,}" => {
             redact_prefix_token(input, "ghp_", |c| c.is_ascii_alphanumeric(), replacement)
         }
-        r"github_pat_[A-Za-z0-9_]{20,}" => {
-            redact_prefix_token(input, "github_pat_", |c| c.is_ascii_alphanumeric() || c == '_', replacement)
+        r"github_pat_[A-Za-z0-9_]{20,}" => redact_prefix_token(
+            input,
+            "github_pat_",
+            |c| c.is_ascii_alphanumeric() || c == '_',
+            replacement,
+        ),
+        r"AIza[0-9A-Za-z\-_]{20,}" => {
+            redact_prefix_token(input, "AIza", is_token_char, replacement)
         }
-        r"AIza[0-9A-Za-z\-_]{20,}" => redact_prefix_token(input, "AIza", is_token_char, replacement),
         r"sk-[A-Za-z0-9]{20,}" => {
             redact_prefix_token(input, "sk-", |c| c.is_ascii_alphanumeric(), replacement)
         }
@@ -270,7 +279,9 @@ fn redact_assignments(input: &str) -> String {
                 if sep == '=' || sep == ':' {
                     rebuilt.push(sep);
                     j += sep.len_utf8();
-                    while j < original.len() && original[j..].chars().next().unwrap().is_whitespace() {
+                    while j < original.len()
+                        && original[j..].chars().next().unwrap().is_whitespace()
+                    {
                         j += 1;
                     }
                     // skip value

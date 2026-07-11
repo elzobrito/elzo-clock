@@ -117,7 +117,8 @@ mod tests {
 
     #[test]
     fn clamps_refresh_and_timeout_limits() {
-        let widget = WidgetRuntime::from_config(&config("printf ok", 0, 0), &SecurityConfig::default());
+        let widget =
+            WidgetRuntime::from_config(&config("printf ok", 0, 0), &SecurityConfig::default());
         assert_eq!(widget.refresh, Duration::from_secs(5));
         assert_eq!(widget.timeout_secs, 1);
     }
