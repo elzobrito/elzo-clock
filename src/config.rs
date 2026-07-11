@@ -142,7 +142,6 @@ fn default_sysinfo_argv() -> Vec<String> {
     vec!["eclock-sysinfo".into()]
 }
 
-
 #[cfg(unix)]
 fn apply_restricted_dir_perms(path: &Path) {
     use std::os::unix::fs::PermissionsExt;
@@ -378,7 +377,10 @@ refresh_secs = 10
         .expect("argv config");
         assert!(!cfg.security.allow_shell_command);
         assert!(cfg.security.privacy_mode);
-        assert_eq!(cfg.widgets[0].command_argv, vec!["eclock-esaa", "/tmp/root"]);
+        assert_eq!(
+            cfg.widgets[0].command_argv,
+            vec!["eclock-esaa", "/tmp/root"]
+        );
     }
 
     #[test]
