@@ -1,0 +1,159 @@
+#!/usr/bin/env bash
+# eclock-esaa — snapshot ESAA para widget do elzo-clock
+# Uso:
+#   eclock-esaa
+#   eclock-esaa /path/projeto
+#   ECLOCK_ESAA_ROOT=~/path/to/esaa-workspace eclock-esaa
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+STATE_HELPER="${SCRIPT_DIR}/eclock_esaa_state.py"
+# If installed to PATH separately, allow override next to eclock-esaa binary
+if [[ ! -f "$STATE_HELPER" ]]; then
+  BIN_DIR="$(cd "$(dirname "$(command -v eclock-esaa 2>/dev/null || true)")" 2>/dev/null && pwd || true)"
+  if [[ -n "${BIN_DIR:-}" && -f "${BIN_DIR}/eclock_esaa_state.py" ]]; then
+    STATE_HELPER="${BIN_DIR}/eclock_esaa_state.py"
+  fi
+fi
+
+resolve_esaa() {
+  if command -v esaa >/dev/null 2>&1; then
+    echo "esaa"
+    return
+  fi
+  if python3 -m esaa --version >/dev/null 2>&1; then
+    echo "python3 -m esaa"
+    return
+  fi
+  if python -m esaa --version >/dev/null 2>&1; then
+    echo "python -m esaa"
+    return
+  fi
+  echo ""
+}
+
+find_root() {
+  if [[ -n "${1:-}" && -d "$1/.roadmap" ]]; then
+    echo "$1"
+    return
+  fi
+  if [[ -n "${ECLOCK_ESAA_ROOT:-}" && -d "${ECLOCK_ESAA_ROOT}/.roadmap" ]]; then
+    echo "$ECLOCK_ESAA_ROOT"
+    return
+  fi
+  local d
+  d="$(pwd)"
+  while [[ "$d" != "/" ]]; do
+    if [[ -d "$d/.roadmap" ]]; then
+      echo "$d"
+      return
+    fi
+    d="$(dirname "$d")"
+  done
+  # No machine-specific default roots: pass path arg or set ECLOCK_ESAA_ROOT.
+  echo ""
+}
+
+ESAA_BIN="$(resolve_esaa)"
+if [[ -z "$ESAA_BIN" ]]; then
+  printf 'ESAA não encontrado no PATH.\n'
+  printf 'Instale: pip install --pre esaa-core\n'
+  exit 0
+fi
+
+ROOT="$(find_root "${1:-}")"
+if [[ -z "$ROOT" ]]; then
+  printf 'Nenhum workspace ESAA (.roadmap/) encontrado.\n'
+  printf 'Dicas:\n'
+  printf '  eclock-esaa /caminho/do/projeto\n'
+  printf '  export ECLOCK_ESAA_ROOT=/caminho/do/projeto\n'
+  printf '  rode eclock de dentro de um repo com .roadmap/\n'
+  exit 0
+fi
+
+# O acompanhamento operacional vem primeiro para permanecer visível no painel compacto.
+if [[ -f "$STATE_HELPER" ]]; then
+  python3 "$STATE_HELPER" "$ROOT"
+else
+  printf 'status: helper eclock_esaa_state.py não encontrado\n'
+fi
+printf '\n'
+
+run_esaa() {
+  # shellcheck disable=SC2086
+  $ESAA_BIN --root "$ROOT" "$@"
+}
+
+printf 'root: %s\n' "$ROOT"
+printf 'cli:  %s\n' "$ESAA_BIN"
+printf '\n'
+
+VERIFY_JSON="$(run_esaa verify 2>/dev/null || true)"
+ELIG_JSON="$(run_esaa eligible 2>/dev/null || true)"
+
+export ECLOCK_ESAA_VERIFY_JSON="${VERIFY_JSON}"
+export ECLOCK_ESAA_ELIG_JSON="${ELIG_JSON}"
+
+python3 - <<'PY'
+import json
+import os
+
+def load(name):
+    raw = os.environ.get(name) or ""
+    raw = raw.strip()
+    if not raw:
+        return None
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError as e:
+        print(f"{name}: JSON inválido ({e})")
+        return None
+
+v = load("ECLOCK_ESAA_VERIFY_JSON")
+if v is None:
+    print("verify: (falhou ou vazio)")
+else:
+    st = v.get("verify_status", "?")
+    print(f"verify: {st}")
+    print(f"seq:    {v.get('last_event_seq', '?')}")
+    if "project_profile" in v:
+        print(f"profile:{v.get('project_profile')}")
+    if v.get("project_profile_mismatch"):
+        print("WARN: project_profile_mismatch")
+    if st != "ok":
+        for k in ("stored_last_event_seq", "projection_hash_sha256"):
+            if k in v:
+                val = str(v[k])
+                if k.endswith("sha256") and len(val) > 16:
+                    val = val[:12] + "…"
+                print(f"{k}: {val}")
+
+print()
+
+e = load("ECLOCK_ESAA_ELIG_JSON")
+if e is None:
+    print("eligible: (falhou ou vazio)")
+else:
+    print(f"eligible: {e.get('eligible_count', 0)}")
+    print(f"parallel: {e.get('max_parallel', 0)}")
+    if e.get("suppressed_superseded_count") is not None:
+        print(f"suppressed: {e.get('suppressed_superseded_count')}")
+    items = e.get("eligible") or []
+    if not items:
+        print("(nenhuma tarefa elegível)")
+    else:
+        print("próximas:")
+        for t in items[:8]:
+            tid = t.get("task_id", "?")
+            kind = t.get("task_kind", "?")
+            title = (t.get("title") or "")[:40]
+            print(f"  · {tid} [{kind}] {title}")
+        if len(items) > 8:
+            print(f"  … +{len(items) - 8} mais")
+    sup = e.get("suppressed_superseded") or []
+    if sup:
+        print("suprimidas:")
+        for t in sup[:5]:
+            print(f"  · {t.get('task_id', '?')}")
+PY

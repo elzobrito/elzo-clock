@@ -1,0 +1,154 @@
+#!/usr/bin/env bash
+# eclock-gcal — agenda Google para o widget do elzo-clock
+set -u
+export PATH="${HOME}/.local/bin:${PATH}"
+DAYS="${ECLOCK_GCAL_DAYS:-14}"
+MAX="${ECLOCK_GCAL_MAX:-12}"
+
+# 1) gcalcli se já autenticado (não dispara prompt)
+if command -v gcalcli >/dev/null 2>&1; then
+  if timeout 6s gcalcli list >/dev/null 2>&1; then
+    printf 'via: gcalcli\n\n'
+    start="$(date -Iseconds 2>/dev/null || true)"
+    end="$(date -Iseconds -d "+${DAYS} days" 2>/dev/null || true)"
+    if [[ -n "${start:-}" && -n "${end:-}" ]]; then
+      timeout 25s gcalcli agenda --nostarted --nocolor "$start" "$end" 2>/dev/null | sed -E $'s/\x1b\\[[0-9;]*[mK]//g' | head -n 40
+    else
+      timeout 25s gcalcli agenda --nostarted --nocolor 2>/dev/null | sed -E $'s/\x1b\\[[0-9;]*[mK]//g' | head -n 40
+    fi
+    exit 0
+  fi
+fi
+
+# 2) Google Calendar API via token GNOME Online Accounts
+ECLOCK_GCAL_DAYS="$DAYS" ECLOCK_GCAL_MAX="$MAX" python3 - <<'PY'
+import json, os, re, subprocess, sys, urllib.parse, urllib.request
+from datetime import datetime, timedelta, timezone
+
+def goa_accounts():
+    try:
+        out = subprocess.check_output([
+            "gdbus", "call", "--session",
+            "--dest", "org.gnome.OnlineAccounts",
+            "--object-path", "/org/gnome/OnlineAccounts",
+            "--method", "org.freedesktop.DBus.ObjectManager.GetManagedObjects",
+        ], text=True, stderr=subprocess.DEVNULL)
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return []
+    return re.findall(r"'(/org/gnome/OnlineAccounts/Accounts/[^']+)'", out)
+
+def access_token(path: str):
+    try:
+        out = subprocess.check_output([
+            "gdbus", "call", "--session",
+            "--dest", "org.gnome.OnlineAccounts",
+            "--object-path", path,
+            "--method", "org.gnome.OnlineAccounts.OAuth2Based.GetAccessToken",
+        ], text=True, stderr=subprocess.DEVNULL)
+    except subprocess.CalledProcessError:
+        return None
+    m = re.search(r"\('([^']+)'", out)
+    return m.group(1) if m else None
+
+def tokeninfo(token: str) -> dict:
+    url = f"https://www.googleapis.com/oauth2/v1/tokeninfo?access_token={urllib.parse.quote(token)}"
+    with urllib.request.urlopen(url, timeout=15) as r:
+        return json.load(r)
+
+def list_events(token: str, days: int, max_results: int) -> list:
+    now = datetime.now(timezone.utc)
+    q = urllib.parse.urlencode({
+        "timeMin": now.isoformat().replace("+00:00", "Z"),
+        "timeMax": (now + timedelta(days=days)).isoformat().replace("+00:00", "Z"),
+        "singleEvents": "true",
+        "orderBy": "startTime",
+        "maxResults": str(max_results),
+    })
+    url = f"https://www.googleapis.com/calendar/v3/calendars/primary/events?{q}"
+    req = urllib.request.Request(url, headers={"Authorization": f"Bearer {token}"})
+    with urllib.request.urlopen(req, timeout=25) as r:
+        return (json.load(r).get("items") or [])
+
+def fmt_event(ev: dict) -> str:
+    start = ev.get("start") or {}
+    when = start.get("dateTime") or start.get("date") or "?"
+    if "T" in when:
+        try:
+            dt = datetime.fromisoformat(when)
+            when_s = dt.strftime("%a %b %d %H:%M")
+        except Exception:
+            when_s = when[:16]
+    else:
+        when_s = f"{when} all-day"
+    title = (ev.get("summary") or "(sem título)").strip()
+    return f"{when_s}  {title}"
+
+days = int(os.environ.get("ECLOCK_GCAL_DAYS", "14"))
+max_results = int(os.environ.get("ECLOCK_GCAL_MAX", "12"))
+accounts = goa_accounts()
+if not accounts:
+    sys.exit(2)
+
+for path in accounts:
+    token = access_token(path)
+    if not token:
+        continue
+    try:
+        info = tokeninfo(token)
+    except Exception:
+        continue
+    email = info.get("email") or "?"
+    scope = info.get("scope") or ""
+    if "calendar" not in scope:
+        print(f"conta: {email}")
+        print("via: GNOME Online Accounts")
+        print("status: token sem escopo calendar")
+        print()
+        print("Calendar está ligado no GNOME, mas o token GOA só tem")
+        print("email/profile — não dá para ler eventos por API.")
+        print()
+        print("Complete o OAuth do gcalcli (browser):")
+        print("  1) Ative Calendar API no Google Cloud Console")
+        print("  2) Crie OAuth Client ID tipo Desktop")
+        print("  3) gcalcli init  → autorize your@email.example")
+        print("  4) gcalcli agenda && eclock-gcal")
+        print()
+        print("Doc: docs/spec/ECLOCK-050-google-calendar.md")
+        sys.exit(0)
+    try:
+        events = list_events(token, days=days, max_results=max_results)
+    except Exception as e:
+        print(f"Calendar API falhou: {e}")
+        sys.exit(4)
+    print(f"conta: {email}")
+    print("via: Google Calendar API (GOA)")
+    print(f"próximos {days} dias ({len(events)} eventos):")
+    print()
+    if not events:
+        print("(nenhum evento)")
+        sys.exit(0)
+    for ev in events:
+        print(fmt_event(ev))
+    sys.exit(0)
+
+sys.exit(2)
+PY
+rc=$?
+if [[ "$rc" -eq 0 ]]; then
+  exit 0
+fi
+
+cat <<'EOF'
+Agenda Google — setup pendente (auth no browser)
+
+Instalado: gcalcli (pipx → ~/.local/bin/gcalcli)
+Conta GNOME: your@email.example (CalendarEnabled)
+
+Passos:
+  1) https://console.cloud.google.com/apis/library/calendar-json.googleapis.com
+  2) Credentials → Create OAuth client ID → Desktop app
+  3) gcalcli init   # client_id + secret + browser
+  4) gcalcli list && eclock-gcal
+  5) reinicie eclock
+
+Doc: docs/spec/ECLOCK-050-google-calendar.md

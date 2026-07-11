@@ -1,0 +1,32 @@
+/target/
+**/*.rs.bk
+.DS_Store
+__pycache__/
+*.py[cod]
+
+# Secrets / local env (never commit)
+.env
+.env.*
+!.env.example
+
+# ESAA runtime ledger and derived projections (local only)
+# Contracts/schemas under .roadmap/*.yaml and *.schema.json MAY be tracked.
+.roadmap/activity.jsonl
+.roadmap/activity.jsonl.lock
+.roadmap/roadmap.json
+.roadmap/issues.json
+.roadmap/lessons.json
+.roadmap/artifacts/
+.roadmap/*.lock.json
+.roadmap/plugins.lock.json
+.roadmap/roadmaps.lock.json
+
+# Security-audit working tree (local paths / operator machine)
+reports/
+security-audit-input.json
+
+# Local install copies of helpers (prefer scripts/ in repo)
+/eclock-esaa
+/eclock-gcal
+/eclock-sysinfo
+/eclock_esaa_state.py

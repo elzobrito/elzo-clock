@@ -1,0 +1,37 @@
+# Exemplo de config do elzo-clock
+# Copie para: ~/.config/elzo-clock/config.toml
+#
+# Prefira command_argv (sem shell). Shell legado: command = "..." com allow_shell_command=true.
+
+[clock]
+show_date = true
+show_seconds = true
+size = 2
+color = "akita"
+language = "pt-BR" # pt-BR ou en
+
+[security]
+allow_shell_command = true
+# widget_allowlist = ["eclock-esaa", "eclock-gcal", "eclock-sysinfo", "printf"]
+redact_widget_output = true
+privacy_mode = false
+
+[[widgets]]
+title = "ESAA"
+command_argv = ["eclock-esaa"]
+# command_argv = ["eclock-esaa", "~/path/to/esaa-workspace"]
+refresh_secs = 10
+timeout_secs = 20
+
+[[widgets]]
+title = "Agenda Google"
+command_argv = ["eclock-gcal"]
+refresh_secs = 300
+timeout_secs = 25
+
+[[widgets]]
+title = "Sistema"
+command_argv = ["eclock-sysinfo"]
+# ou caminho absoluto para scripts/eclock-sysinfo
+refresh_secs = 30
+timeout_secs = 5

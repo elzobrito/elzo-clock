@@ -1,0 +1,64 @@
+{
+  "meta": {
+    "schema_version": "0.4.1",
+    "generated_by": "esaa.project_profile",
+    "source_event_store": ".roadmap/activity.jsonl",
+    "last_event_seq": 5,
+    "updated_at": "2026-07-11T05:04:21Z"
+  },
+  "operator": {
+    "display_name": "Elzo"
+  },
+  "project_name": "elzo-clock",
+  "domain": "terminal-tools",
+  "language": "pt-BR",
+  "sources_of_truth": [
+    "README.md",
+    "Cargo.toml",
+    "src/**",
+    "docs/spec/**"
+  ],
+  "output_surfaces": [
+    "src/**",
+    "scripts/**",
+    "docs/**",
+    "README.md"
+  ],
+  "protected_paths": [
+    ".roadmap/**",
+    "target/**",
+    "Cargo.lock"
+  ],
+  "workflow_preferences": {
+    "guided_onboarding": true
+  },
+  "guide_topology": {
+    "guides": [
+      {
+        "path": "AGENTS.md",
+        "exists": true,
+        "role": "agent-guide"
+      },
+      {
+        "path": "CLAUDE.md",
+        "exists": false,
+        "role": "root-claude-guide"
+      },
+      {
+        "path": ".claude/CLAUDE.md",
+        "exists": true,
+        "role": "claude-guide"
+      },
+      {
+        "path": "README.md",
+        "exists": true,
+        "role": "readme"
+      },
+      {
+        "path": "readme.md",
+        "exists": false,
+        "role": "readme"
+      }
+    ]
+  }
+}

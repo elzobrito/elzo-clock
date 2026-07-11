@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# Snapshot de sistema para widget eclock (sem shell embutido no app).
+set -euo pipefail
+host="$(hostname 2>/dev/null || echo n/a)"
+up="$(uptime -p 2>/dev/null || true)"
+load="$(cut -d' ' -f1-3 /proc/loadavg 2>/dev/null || echo n/a)"
+printf 'host: %s\nuptime: %s\nload: %s\n' "$host" "$up" "$load"
