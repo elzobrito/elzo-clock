@@ -2,6 +2,8 @@
 
 Dashboard de relógio no terminal, **seu** — inspirado na ideia do [clock-tui / tclock](https://github.com/akitaonrails/clock-tui) (relógio grande + painéis de status), escrito do zero em Rust com [ratatui](https://github.com/ratatui/ratatui).
 
+![eclock — tema akita](docs/assets/eclock-screenshot.png)
+
 Não é fork do código do Akita; é um projeto pessoal enxuto.
 
 ## Funcionalidades (v0.1)
